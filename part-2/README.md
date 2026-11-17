@@ -50,11 +50,11 @@ ruff format --check .
 
 ## How the history is trimmed
 
-`MAX_HISTORY_MESSAGES` in `chat.py` is the most recent messages sent with each request. The default is 20, which is about ten question and answer pairs. Change it and run the bot again to see the effect. A value of 4 makes the bot forget a name you told it after a couple of turns.
+`MAX_HISTORY_MESSAGES` in `chat.py` is how many saved messages are sent with each request, along with the new question. The default is 20, which is ten question and answer pairs. Change it and run the bot again to see the effect. A value of 4 makes the bot forget a name you told it after a couple of turns.
 
-The newest question is already in the list when it is trimmed, so the cut can land on an assistant reply. `trim_history()` drops that reply, so the request always starts with a user message. That means a limit of 20 sends 19 messages once the conversation is long enough.
+Keep the limit even. The saved history is whole question and answer pairs, so an even limit means the trimmed list always starts with a user message.
 
-If a request fails, the question that was just added is removed again, so the history never holds two user messages in a row.
+A question and its reply are saved only after the reply arrives. If a request fails, the history is left as it was, so it never holds two user messages in a row.
 
 Idea for later, not built here: instead of dropping old messages, ask the model to write a short summary of them and send the summary in their place. The bot would keep the gist of what it would otherwise forget.
 
@@ -62,6 +62,6 @@ Idea for later, not built here: instead of dropping old messages, ask the model 
 
 - `chat.py` keeps a `history` list and sends it with every request.
 - Replies are streamed with `stream=True`. The token counts arrive on the last chunk of the stream, and the token line is printed after each reply.
-- `trim_history()` limits how much of the history is sent.
+- `trim_history()` limits how much of the saved history is sent.
 - A `reset` command clears the history.
 - New: `tests/test_history.py`, `requirements-dev.txt`, and `conftest.py` (which lets the tests import `chat.py`).

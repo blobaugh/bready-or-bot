@@ -5,65 +5,42 @@ import pytest
 from openai import APIConnectionError
 
 
-def make_history(count: int) -> list[dict[str, str]]:
-    """Build a conversation of user and assistant messages, starting with the user."""
-    roles = ["user", "assistant"]
-    return [{"role": roles[i % 2], "content": f"message {i}"} for i in range(count)]
+def make_history(pairs: int) -> list[chat.Message]:
+    """Build saved history: whole question and answer pairs, starting with the user."""
+    history: list[chat.Message] = []
+    for i in range(pairs):
+        history.append({"role": "user", "content": f"question {i}"})
+        history.append({"role": "assistant", "content": f"answer {i}"})
+    return history
 
 
-def test_short_history_is_unchanged():
+def test_trim_keeps_only_the_last_messages():
     history = make_history(5)
+    assert chat.trim_history(history, 4) == history[-4:]
+
+
+def test_trim_returns_everything_when_the_history_is_short():
+    history = make_history(2)
     assert chat.trim_history(history, 20) == history
 
 
-def test_long_history_keeps_only_the_newest_messages():
-    history = make_history(40)
-    trimmed = chat.trim_history(history, 20)
-    assert len(trimmed) == 20
-    assert trimmed[-1] == history[-1]
-
-
 def test_trimmed_history_starts_with_a_user_message():
-    # A list that ends with the newest question has an odd length. The raw cut would start
-    # on an assistant reply, so the helper drops it.
-    history = make_history(41)
-    assert history[-1]["role"] == "user"
-    trimmed = chat.trim_history(history, 20)
-    assert trimmed[0]["role"] == "user"
-    assert trimmed[-1] == history[-1]
-
-
-def test_trim_does_not_change_the_original_list():
-    history = make_history(41)
-    chat.trim_history(history, 20)
-    assert len(history) == 41
-
-
-def test_default_limit_is_even():
     assert chat.MAX_HISTORY_MESSAGES % 2 == 0
+    history = make_history(chat.MAX_HISTORY_MESSAGES)
+    trimmed = chat.trim_history(history)
+    assert len(trimmed) == chat.MAX_HISTORY_MESSAGES
+    assert trimmed[0]["role"] == "user"
 
 
-def test_failed_call_removes_the_question(monkeypatch):
-    def fail(client, model, messages):
-        # The request is only used for error details, which this test does not read.
-        raise APIConnectionError(request=None)  # type: ignore[arg-type]
-
-    monkeypatch.setattr(chat, "stream_reply", fail)
-    history = make_history(2)
-    with pytest.raises(APIConnectionError):
-        chat.take_turn(None, "model", history, "Hello?")
-    assert history == make_history(2)
-
-
-def test_successful_turn_adds_question_and_reply(monkeypatch):
+def test_successful_turn_remembers_the_question_then_the_reply(monkeypatch):
     sent = []
 
     def fake_stream(client, model, messages):
-        sent.append(list(messages))
+        sent.append(messages)
         return "Hi Sam", 7, 2
 
     monkeypatch.setattr(chat, "stream_reply", fake_stream)
-    history: list[dict[str, str]] = []
+    history: list[chat.Message] = []
     tokens = chat.take_turn(None, "model", history, "My name is Sam.")
     assert tokens == (7, 2)
     assert history == [
@@ -71,3 +48,15 @@ def test_successful_turn_adds_question_and_reply(monkeypatch):
         {"role": "assistant", "content": "Hi Sam"},
     ]
     assert sent == [[{"role": "user", "content": "My name is Sam."}]]
+
+
+def test_failed_call_leaves_the_history_unchanged(monkeypatch):
+    def fail(client, model, messages):
+        # The request is only used for error details, which this test does not read.
+        raise APIConnectionError(request=None)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(chat, "stream_reply", fail)
+    history = make_history(1)
+    with pytest.raises(APIConnectionError):
+        chat.take_turn(None, "model", history, "Hello?")
+    assert history == make_history(1)

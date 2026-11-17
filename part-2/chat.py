@@ -8,9 +8,11 @@ from openai import APIConnectionError, APIStatusError, OpenAI
 
 REQUIRED_SETTINGS = ("LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL")
 
-# The most recent messages sent with each request. Keep this an even number so a full
-# conversation is whole question and answer pairs. trim_history() covers the odd case.
+# How many saved messages are sent with each request, plus the new question. Keep this even:
+# saved history is whole question and answer pairs, so the trimmed list starts with a user message.
 MAX_HISTORY_MESSAGES = 20
+
+Message = dict[str, str]
 
 STATUS_HINTS = {
     400: "The service rejected the request. Check that LLM_MODEL is a valid model name.",
@@ -30,21 +32,12 @@ def load_settings() -> dict[str, str]:
     return {name: os.environ[name] for name in REQUIRED_SETTINGS}
 
 
-def trim_history(
-    history: list[dict[str, str]], max_messages: int = MAX_HISTORY_MESSAGES
-) -> list[dict[str, str]]:
-    """Return only the most recent messages, so the request stays a sensible size."""
-    trimmed = history[-max_messages:]
-    # The newest message is the user's question, so the list usually has an odd length and
-    # the cut can land on an assistant reply. Drop it so the list starts with a user message.
-    if trimmed and trimmed[0]["role"] == "assistant":
-        trimmed = trimmed[1:]
-    return trimmed
+def trim_history(history: list[Message], max_messages: int = MAX_HISTORY_MESSAGES) -> list[Message]:
+    """Return only the most recent saved messages, so the request stays a sensible size."""
+    return history[-max_messages:]
 
 
-def stream_reply(
-    client: OpenAI, model: str, messages: list[dict[str, str]]
-) -> tuple[str, int, int]:
+def stream_reply(client: OpenAI, model: str, messages: list[Message]) -> tuple[str, int, int]:
     """Print the reply as it arrives. Return the full text and the token counts."""
     stream = client.chat.completions.create(model=model, messages=messages, stream=True)
     parts: list[str] = []
@@ -64,22 +57,15 @@ def stream_reply(
     return "".join(parts), prompt_tokens, completion_tokens
 
 
-def take_turn(
-    client: OpenAI, model: str, history: list[dict[str, str]], question: str
-) -> tuple[int, int]:
-    """Add the question to the history, stream the reply, and add the reply too.
+def take_turn(client: OpenAI, model: str, history: list[Message], question: str) -> tuple[int, int]:
+    """Stream the reply, then remember the question and the reply.
 
-    If the model call fails, the question is removed again, so the history never holds
-    two user messages in a row. The error is passed on to the caller.
+    If the model call fails, the history is left unchanged.
     """
-    history.append({"role": "user", "content": question})
+    messages = trim_history(history) + [{"role": "user", "content": question}]
     print("Bot: ", end="", flush=True)
-    try:
-        reply, prompt_tokens, completion_tokens = stream_reply(client, model, trim_history(history))
-    except (APIConnectionError, APIStatusError):
-        history.pop()
-        print()
-        raise
+    reply, prompt_tokens, completion_tokens = stream_reply(client, model, messages)
+    history.append({"role": "user", "content": question})
     history.append({"role": "assistant", "content": reply})
     return prompt_tokens, completion_tokens
 
@@ -98,7 +84,7 @@ def main() -> None:
     settings = load_settings()
     client = OpenAI(base_url=settings["LLM_BASE_URL"], api_key=settings["LLM_API_KEY"])
     model = settings["LLM_MODEL"]
-    history: list[dict[str, str]] = []
+    history: list[Message] = []
 
     print(f"Chatting with {model}. Type 'reset' to forget the conversation, 'quit' to exit.")
     while True:
@@ -118,7 +104,7 @@ def main() -> None:
         try:
             prompt_tokens, completion_tokens = take_turn(client, model, history, question)
         except (APIConnectionError, APIStatusError) as error:
-            print(f"Error: {describe_error(error)}")
+            print(f"\nError: {describe_error(error)}")
             continue
         print(f"[tokens: {prompt_tokens} in, {completion_tokens} out]")
 

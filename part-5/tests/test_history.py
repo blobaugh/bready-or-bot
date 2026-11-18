@@ -1,0 +1,71 @@
+"""Tests for the history helpers. No network and no API key needed."""
+
+import chat
+import pytest
+from openai import APIConnectionError
+
+SYSTEM = {"role": "system", "content": "You are Crumb."}
+
+
+@pytest.fixture(autouse=True)
+def no_retrieval(monkeypatch):
+    """Skip the embedding call. These tests are about history, not retrieval."""
+    monkeypatch.setattr(chat, "retrieve", lambda client, model, chunks, question: [])
+
+
+def make_history(pairs: int) -> list[chat.Message]:
+    """Build saved history: whole question and answer pairs, starting with the user."""
+    history: list[chat.Message] = []
+    for i in range(pairs):
+        history.append({"role": "user", "content": f"question {i}"})
+        history.append({"role": "assistant", "content": f"answer {i}"})
+    return history
+
+
+def test_trim_keeps_only_the_last_messages():
+    history = make_history(5)
+    assert chat.trim_history(history, 4) == history[-4:]
+
+
+def test_trim_returns_everything_when_the_history_is_short():
+    history = make_history(2)
+    assert chat.trim_history(history, 20) == history
+
+
+def test_trimmed_history_starts_with_a_user_message():
+    assert chat.MAX_HISTORY_MESSAGES % 2 == 0
+    history = make_history(chat.MAX_HISTORY_MESSAGES)
+    trimmed = chat.trim_history(history)
+    assert len(trimmed) == chat.MAX_HISTORY_MESSAGES
+    assert trimmed[0]["role"] == "user"
+
+
+def test_successful_turn_remembers_the_question_then_the_reply(monkeypatch):
+    sent = []
+
+    def fake_stream(client, model, messages, temperature, max_tokens=None):
+        sent.append(messages)
+        return "Hi Ben", 7, 2
+
+    monkeypatch.setattr(chat, "stream_reply", fake_stream)
+    history: list[chat.Message] = []
+    tokens = chat.take_turn(None, "model", SYSTEM, 0.3, history, "My name is Ben.", "embed", [])
+    assert tokens == (7, 2)
+    assert history == [
+        {"role": "user", "content": "My name is Ben."},
+        {"role": "assistant", "content": "Hi Ben"},
+    ]
+    assert sent[0][0] == SYSTEM
+    assert "My name is Ben." in sent[0][1]["content"]
+
+
+def test_failed_call_leaves_the_history_unchanged(monkeypatch):
+    def fail(client, model, messages, temperature, max_tokens=None):
+        # The request is only used for error details, which this test does not read.
+        raise APIConnectionError(request=None)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(chat, "stream_reply", fail)
+    history = make_history(1)
+    with pytest.raises(APIConnectionError):
+        chat.take_turn(None, "model", SYSTEM, 0.3, history, "Hello?", "embed", [])
+    assert history == make_history(1)

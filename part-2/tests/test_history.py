@@ -37,17 +37,17 @@ def test_successful_turn_remembers_the_question_then_the_reply(monkeypatch):
 
     def fake_stream(client, model, messages):
         sent.append(messages)
-        return "Hi Sam", 7, 2
+        return "Hi Ben", 7, 2
 
     monkeypatch.setattr(chat, "stream_reply", fake_stream)
     history: list[chat.Message] = []
-    tokens = chat.take_turn(None, "model", history, "My name is Sam.")
+    tokens = chat.take_turn(None, "model", history, "My name is Ben.")
     assert tokens == (7, 2)
     assert history == [
-        {"role": "user", "content": "My name is Sam."},
-        {"role": "assistant", "content": "Hi Sam"},
+        {"role": "user", "content": "My name is Ben."},
+        {"role": "assistant", "content": "Hi Ben"},
     ]
-    assert sent == [[{"role": "user", "content": "My name is Sam."}]]
+    assert sent == [[{"role": "user", "content": "My name is Ben."}]]
 
 
 def test_failed_call_leaves_the_history_unchanged(monkeypatch):

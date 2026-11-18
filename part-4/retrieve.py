@@ -31,12 +31,6 @@ def load_embedding_settings() -> dict[str, str]:
     return {name: os.environ[name] for name in names}
 
 
-def embed(client: OpenAI, model: str, texts: list[str]) -> list[list[float]]:
-    """Turn each text into a vector. One API call for the whole list."""
-    response = client.embeddings.create(model=model, input=texts)
-    return [item.embedding for item in response.data]
-
-
 def load_index(embed_model: str, path: Path = INDEX_FILE) -> list[Chunk]:
     """Load the saved chunks. Stop with a clear message if the index cannot be used."""
     if not path.exists():
@@ -65,11 +59,11 @@ def top_chunks(
 
 
 def retrieve(
-    client: OpenAI, embed_model: str, chunks: list[Chunk], question: str, k: int = TOP_K
+    client: OpenAI, embed_model: str, chunks: list[Chunk], question: str
 ) -> list[tuple[float, Chunk]]:
-    """Embed the question and return the k most related chunks with their scores."""
-    question_vector = embed(client, embed_model, [question])[0]
-    return top_chunks(question_vector, chunks, k)
+    """Embed the question and return the most related chunks with their scores."""
+    response = client.embeddings.create(model=embed_model, input=question)
+    return top_chunks(response.data[0].embedding, chunks)
 
 
 def chunk_label(chunk: Chunk) -> str:

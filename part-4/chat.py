@@ -7,7 +7,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from openai import APIConnectionError, APIStatusError, OpenAI
-from retrieve import TOP_K, Chunk, chunk_label, load_index, retrieve
+from retrieve import Chunk, chunk_label, load_index, retrieve
 
 REQUIRED_SETTINGS = ("LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL", "EMBED_MODEL")
 
@@ -113,7 +113,7 @@ def take_turn(
     The request carries the passages next to the question. The history keeps only the plain
     question, so old passages do not pile up. If a call fails, the history is left unchanged.
     """
-    scored_chunks = retrieve(client, embed_model, chunks, question, TOP_K)
+    scored_chunks = retrieve(client, embed_model, chunks, question)
     if debug:
         for score, chunk in scored_chunks:
             print(f"[retrieved {score:.3f}  {chunk_label(chunk)}]")

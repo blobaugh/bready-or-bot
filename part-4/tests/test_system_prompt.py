@@ -9,7 +9,7 @@ SYSTEM = {"role": "system", "content": "You are Crumb."}
 @pytest.fixture(autouse=True)
 def no_retrieval(monkeypatch):
     """Skip the embedding call. These tests are about the system message, not retrieval."""
-    monkeypatch.setattr(chat, "retrieve", lambda client, model, chunks, question, k: [])
+    monkeypatch.setattr(chat, "retrieve", lambda client, model, chunks, question: [])
 
 
 def make_history(pairs: int) -> list[chat.Message]:

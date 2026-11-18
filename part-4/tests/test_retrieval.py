@@ -84,7 +84,7 @@ def test_the_system_message_is_still_first_with_retrieval(monkeypatch):
 
     monkeypatch.setattr(chat, "stream_reply", fake_stream)
     monkeypatch.setattr(
-        chat, "retrieve", lambda client, model, chunks, question, k: [(0.9, CHUNKS[0])]
+        chat, "retrieve", lambda client, model, chunks, question: [(0.9, CHUNKS[0])]
     )
     system = {"role": "system", "content": "You are Crumb."}
     history: list[chat.Message] = []

@@ -64,6 +64,9 @@ user names another project, use that project and do not assume BenBot.
 3. **Set the started status.** Call `list_issue_statuses` and use the `started`
    role status with the lowest sortOrder (currently `in_progress`). Only after the
    correct issue is confirmed and no blocker stop applies. Skip if already there.
+   Set it with `update_issue` and `status: "<slug>"`. Do NOT use
+   `update_issue_status`: that edits a status definition for the whole project and
+   never moves an issue. Confirm with `get_issue` that the status changed.
 
    3a. **Create an agent run.** Call `mcp__claude_ai_FeedPebble__create_agent_run`
    with the project, the issue key, `state: "running"`, and a short title (issue
@@ -97,7 +100,8 @@ user names another project, use that project and do not assume BenBot.
 7. **Set the review status.** Look up `list_issue_statuses` and move the issue to
    `ready_for_qa` (the project's review state; if it is renamed or missing, pick
    the equivalent and say so). Never set `done` or `cancelled`, and do not set
-   `open` unless the user asks. Ben closes issues.
+   `open` unless the user asks. Ben closes issues. Use `update_issue` with the
+   status slug (not `update_issue_status`), then confirm with `get_issue`.
 
 8. **Finish the agent run.** Call `mcp__claude_ai_FeedPebble__update_agent_run`
    with the run id from step 3a:

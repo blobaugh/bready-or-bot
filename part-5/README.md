@@ -96,20 +96,6 @@ A real deployment would also need, at least:
 - secret management beyond a `.env` file
 - a way to hand a conversation to a human
 
-## Put a spending limit on your key
-
-Checked against the OpenRouter docs on 2026-11-18.
-
-1. Open your keys page in the OpenRouter dashboard and create a key, or open an existing one. The key settings have a "Key limit" section with a credit limit and an optional reset interval (daily, weekly, or monthly, at midnight UTC). Leave the reset unset for a lifetime cap.
-2. When a key has used up its limit, requests with it are rejected (HTTP 402) until you raise the limit or the limit resets.
-3. To see what is left on a key, send a GET request to `https://openrouter.ai/api/v1/key` with the key in the `Authorization: Bearer` header. The `data` object includes `limit`, `limit_remaining`, and `usage`. `limit` and `limit_remaining` are `null` when the key has no limit.
-
-```bash
-curl -s https://openrouter.ai/api/v1/key -H "Authorization: Bearer $LLM_API_KEY"
-```
-
-What could not be verified: the OpenRouter docs pages that were checked describe the limit fields and the `GET /api/v1/key` response, but none of them gave the exact dashboard button labels for setting a limit. The "Key limit" section name comes from a search summary of the docs, so the layout may differ from the steps above.
-
 ## How to run the tests
 
 The tests cover wrapper-string removal, the input cap, the turn cap, the customer-written labels, and message assembly with guardrails on and off. They need no network and no API key.
